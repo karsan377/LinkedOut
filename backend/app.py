@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from pathlib import Path
 from datetime import datetime
@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import models
 
-#down the the line if we want LLMs
 try:
     import openai
     LLM_AVAILABLE = True
@@ -23,19 +22,29 @@ except ImportError:
     GEOCODER = None
     GEOCODING_AVAILABLE = False
 
-app = Flask(__name__)
+# Set up Flask to serve frontend files
+app = Flask(
+    __name__,
+    static_folder='../frontend',
+    static_url_path=''
+)
 CORS(app)
 
-
+# Serve index.html at root
 @app.route('/')
-def hello():
-    return "Hello, World!"
+def index():
+    return send_from_directory(app.static_folder, 'index.html')
 
+# Serve other HTML files
+@app.route('/<path:path>')
+def serve_static(path):
+    if path and Path(app.static_folder, path).exists():
+        return send_from_directory(app.static_folder, path)
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/posts', methods=['GET'])
 def posts_list():
     return jsonify(models.get_posts())
-
 
 @app.route('/posts', methods=['POST'])
 def posts_create():
@@ -48,13 +57,12 @@ def posts_create():
 
     post = {
         'content': content,
-        'username': username,  # Store username with post
+        'username': username,
         'created_at': datetime.utcnow().isoformat() + 'Z'
     }
     models.add_post(post)
     return jsonify(post), 201
 
-#get endpoints
 @app.route('/resources')
 def resources_list():
     return jsonify(models.get_resources())
@@ -63,7 +71,6 @@ def resources_list():
 def resource_click(resource_id):
     exists = models.click_resource(resource_id)
     return jsonify({'exists': exists})
-
 
 @app.route('/search', methods=['POST'])
 def search_resources():
@@ -84,7 +91,6 @@ def search_resources():
     query_lower = query.lower()
     resource_type = None
     
-    #keyword matching for rn but experiment with LLM
     if any(word in query_lower for word in ['water', 'drink', 'thirst', 'fountain']):
         resource_type = 'water'
     elif any(word in query_lower for word in ['food', 'eat', 'meal', 'hungry', 'lunch', 'dinner']):
@@ -96,7 +102,6 @@ def search_resources():
     elif any(word in query_lower for word in ['medical', 'doctor', 'health', 'clinic', 'hospital', 'care']):
         resource_type = 'medical'
     
-    # Find nearest resource
     nearest = models.find_nearest_resource(user_lat, user_lon, resource_type)
     
     if not nearest:
@@ -105,7 +110,6 @@ def search_resources():
         else:
             return jsonify({'message': 'I didn\'t understand what you\'re looking for. Try asking for: water, food, shelter, jobs, or medical services.'}), 400
     
-    #get address
     address = "Address unavailable"
     if GEOCODING_AVAILABLE:
         try:
@@ -122,8 +126,6 @@ def search_resources():
     }
     
     return jsonify(response)
-
-
 
 @app.route('/resources', methods=['POST'])
 def resources_create():
@@ -154,6 +156,7 @@ def resources_create():
     models.add_resource(resource)
     return jsonify(resource), 201
 
-
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    # Use port 8080 for Fly.io, bind to 0.0.0.0
+    port = int(os.environ.get('PORT', 8080))
+    app.run(debug=False, host='0.0.0.0', port=port)
