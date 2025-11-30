@@ -1,15 +1,19 @@
-FROM python:3.12.12 AS builder
+FROM python:3.12.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
+
 WORKDIR /app
 
-
-RUN python -m venv .venv
+# Copy requirements and install directly (no venv needed in Docker)
 COPY requirements.txt ./
-RUN .venv/bin/pip install -r requirements.txt
-FROM python:3.12.12-slim
-WORKDIR /app
-COPY --from=builder /app/.venv .venv/
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the entire application
 COPY . .
+
+# Expose port
+EXPOSE 8080
+
+# Run the app
 CMD ["python", "backend/app.py"]
