@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Copy requirements and install directly (no venv needed in Docker)
+# Copy requirements and install directly
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
